@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: odoo-db-init
+  namespace: {{ .Values.namespace }}
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+
+      securityContext:
+        fsGroup: 101
+
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+
+      containers:
+        - name: odoo-init
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          command: ["/opt/odoo/odoo-bin"]
+          args:
+            - "-d"
+            - "{{ .Values.postgres.auth.database }}"
+            - "-i"
+            - "base"
+            - "--db_host={{ .Values.odoo.db.host }}"
+            - "--db_port={{ .Values.odoo.db.port }}"
+            - "--db_user={{ .Values.odoo.db.user }}"
+            - "--db_password={{ .Values.odoo.db.password }}"
+            - "--stop-after-init"
+
+          volumeMounts:
+            - name: odoo-data
+              mountPath: /opt/odoo/.local/share/Odoo
+
+      volumes:
+        - name: odoo-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.odoo.name }}

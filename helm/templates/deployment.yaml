@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: odoo
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: odoo
+  template:
+    metadata:
+      labels:
+        app: odoo
+    spec:
+      securityContext:
+        fsGroup: 101
+
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+
+      containers:
+        - name: odoo
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          ports:
+            - containerPort: 8069
+
+          command: ["/opt/odoo/odoo-bin"]
+          args:
+            - "--db_host={{ .Values.odoo.db.host }}"
+            - "--db_port={{ .Values.odoo.db.port }}"
+            - "--db_user={{ .Values.odoo.db.user }}"
+            - "--db_password={{ .Values.odoo.db.password }}"
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+          volumeMounts:
+            - name: odoo-data
+              mountPath: /opt/odoo/.local/share/Odoo
+
+      volumes:
+        - name: odoo-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.odoo.name }}

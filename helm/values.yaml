@@ -1,0 +1,69 @@
+namespace: odoo
+
+replicaCount: 1
+
+image:
+  repository: 192.168.0.10:31000/odoo18
+  tag: "1.8"
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: regcred
+
+service:
+  type: ClusterIP
+  port: 8069
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+  limits:
+    cpu: "500m"
+    memory: "1Gi"
+
+nodeSelector:
+  kubernetes.io/hostname: node1-132
+
+tolerations:
+  - key: "node-role.kubernetes.io/control-plane"
+    operator: "Exists"
+    effect: "NoSchedule"
+
+postgres:
+  enabled: true
+
+  image:
+    repository: postgres
+    tag: "16"
+    pullPolicy: IfNotPresent
+
+  auth:
+    database: odoo
+    username: odoo_admin
+    password: "odoo@123"
+
+  service:
+    port: 5432
+
+odoo:
+  db:
+    host: postgres
+    port: 5432
+    user: odoo_admin
+    password: "odoo@123"
+
+persistence:
+  odoo:
+    name: odoo-pvc
+    storageClass: odoo-local
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+
+  postgres:
+    name: postgres-pvc
+    storageClass: postgres-local
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
