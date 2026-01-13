@@ -2,6 +2,7 @@ pipeline {
     agent any
 
     environment {
+
         IMAGE_NAME = "192.168.0.10:31000/odoo18"
         IMAGE_TAG  = "${BUILD_NUMBER}"
 
@@ -10,13 +11,16 @@ pipeline {
 
         ARGOCD_SERVER = "argocd-server.argocd.svc.cluster.local"
         ARGOCD_APP    = "odoo18"
+
+        GIT_REPO = "https://github.com/mhadiltt/odoo18.git"
+        GIT_BRANCH = "main"
     }
 
     stages {
 
         stage('Clone Source Code') {
             steps {
-                checkout scm
+                git branch: "${GIT_BRANCH}", url: "${GIT_REPO}"
             }
         }
 
@@ -53,7 +57,7 @@ pipeline {
                         # Login to ArgoCD
                         argocd login $ARGOCD_SERVER --username $ARGO_USER --password $ARGO_PASS --insecure
 
-                        # Update Helm image tag
+                        # Update Helm image tag in ArgoCD
                         argocd app set $ARGOCD_APP --helm-set image.tag=$IMAGE_TAG
 
                         # Sync application
@@ -69,7 +73,7 @@ pipeline {
             echo "Odoo 18 successfully built and deployed using Jenkins + ArgoCD!"
         }
         failure {
-            echo "Odoo 18 pipeline failed. Please check logs."
+            echo "Odoo 18 pipeline failed. Please check Jenkins logs."
         }
     }
 }
