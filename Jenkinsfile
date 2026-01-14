@@ -2,18 +2,16 @@ pipeline {
     agent any
 
     environment {
-
         IMAGE_NAME = "192.168.0.10:31000/odoo18"
         IMAGE_TAG  = "${BUILD_NUMBER}"
 
-        DOCKER_CREDS = "docker-registry-creds"
-        ARGOCD_CREDS = "argocd-jenkins-creds"
-
-        ARGOCD_SERVER = "argocd-server.argocd.svc.cluster.local"
-        ARGOCD_APP    = "odoo18"
+        DOCKER_CREDS = "docker-creads"
 
         GIT_REPO = "https://github.com/mhadiltt/odoo18.git"
         GIT_BRANCH = "main"
+
+        HELM_RELEASE = "odoo"
+        HELM_NAMESPACE = "odoo"
     }
 
     stages {
@@ -50,27 +48,23 @@ pipeline {
             }
         }
 
-        stage('Deploy using ArgoCD') {
+        stage('Deploy using Helm') {
             steps {
-                withCredentials([usernamePassword(credentialsId: ARGOCD_CREDS, usernameVariable: 'ARGO_USER', passwordVariable: 'ARGO_PASS')]) {
-                    sh '''
-                        # Login to ArgoCD
-                        argocd login $ARGOCD_SERVER --username $ARGO_USER --password $ARGO_PASS --insecure
-
-                        # Update Helm image tag in ArgoCD
-                        argocd app set $ARGOCD_APP --helm-set image.tag=$IMAGE_TAG
-
-                        # Sync application
-                        argocd app sync $ARGOCD_APP
-                    '''
-                }
+                sh '''
+                    cd helm
+                    helm upgrade --install $HELM_RELEASE . \
+                      --namespace $HELM_NAMESPACE \
+                      --set image.repository=$IMAGE_NAME \
+                      --set image.tag=$IMAGE_TAG \
+                      --set image.pullPolicy=Always
+                '''
             }
         }
     }
 
     post {
         success {
-            echo "Odoo 18 successfully built and deployed using Jenkins + ArgoCD!"
+            echo "Odoo 18 successfully built and deployed using Jenkins + Helm!"
         }
         failure {
             echo "Odoo 18 pipeline failed. Please check Jenkins logs."
