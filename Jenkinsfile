@@ -5,7 +5,7 @@ pipeline {
         IMAGE_NAME = "192.168.0.10:31000/odoo18"
         IMAGE_TAG  = "${BUILD_NUMBER}"
 
-        DOCKER_CREDS = "2cloudregistry"
+        DOCKER_CRED_ID = "DOCKER_CREDS"
 
         GIT_REPO = "https://github.com/mhadiltt/odoo18.git"
         GIT_BRANCH = "main"
@@ -24,7 +24,13 @@ pipeline {
 
         stage('Docker Login') {
             steps {
-                withCredentials([usernamePassword(credentialsId: DOCKER_CREDS, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: "${DOCKER_CRED_ID}",
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )
+                ]) {
                     sh '''
                         echo "$DOCKER_PASS" | docker login 192.168.0.10:31000 -u "$DOCKER_USER" --password-stdin
                     '''
@@ -71,3 +77,4 @@ pipeline {
         }
     }
 }
+
