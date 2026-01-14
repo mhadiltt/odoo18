@@ -1,75 +1,112 @@
 pipeline {
-    agent any
+  agent {
+    kubernetes {
+      defaultContainer 'docker'
+      yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  securityContext:
+    runAsUser: 0
+  containers:
+    - name: docker
+      image: docker:24.0.6-dind
+      securityContext:
+        privileged: true
+      env:
+        - name: DOCKER_TLS_CERTDIR
+          value: ""
+      command: ["dockerd-entrypoint.sh"]
+      args: ["--host=tcp://0.0.0.0:2375", "--host=unix:///var/run/docker.sock"]
+      tty: true
 
-    environment {
-        IMAGE_NAME = "192.168.0.10:31000/odoo18"
-        IMAGE_TAG  = "${BUILD_NUMBER}"
+    - name: jnlp
+      image: jenkins/inbound-agent:latest
+      tty: true
+"""
+    }
+  }
 
-        DOCKER_CRED_ID = "DOCKER_CREDS"
+  environment {
+    IMAGE_NAME = "192.168.0.10:31000/odoo18"
+    IMAGE_TAG  = "${BUILD_NUMBER}"
 
-        GIT_REPO = "https://github.com/mhadiltt/odoo18.git"
-        GIT_BRANCH = "main"
+    DOCKER_CRED_ID = "DOCKER_CREDS"
 
-        HELM_RELEASE = "odoo"
-        HELM_NAMESPACE = "odoo"
+    HELM_RELEASE = "odoo"
+    HELM_NAMESPACE = "odoo"
+  }
+
+  stages {
+
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
     }
 
-    stages {
-
-        stage('Clone Source Code') {
-            steps {
-                git branch: "${GIT_BRANCH}", url: "${GIT_REPO}"
-            }
+    stage('Install Helm') {
+      steps {
+        container('docker') {
+          sh '''
+            apk add --no-cache curl bash
+            curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          '''
         }
-
-        stage('Docker Login') {
-            steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: DOCKER_CRED_ID,
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )
-                ]) {
-                    sh '''
-                        echo "$DOCKER_PASS" | docker login 192.168.0.10:31000 -u "$DOCKER_USER" --password-stdin
-                    '''
-                }
-            }
-        }
-
-        stage('Build Image') {
-            steps {
-                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
-            }
-        }
-
-        stage('Push Image') {
-            steps {
-                sh 'docker push $IMAGE_NAME:$IMAGE_TAG'
-            }
-        }
-
-        stage('Deploy with Helm') {
-            steps {
-                sh '''
-                    cd helm
-                    helm upgrade --install $HELM_RELEASE . \
-                      --namespace $HELM_NAMESPACE \
-                      --set image.repository=$IMAGE_NAME \
-                      --set image.tag=$IMAGE_TAG \
-                      --set image.pullPolicy=Always
-                '''
-            }
-        }
+      }
     }
 
-    post {
-        success {
-            echo "Odoo deployed successfully"
+    stage('Docker Login') {
+      steps {
+        container('docker') {
+          withCredentials([usernamePassword(credentialsId: DOCKER_CRED_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+            sh '''
+              echo "$DOCKER_PASS" | docker login 192.168.0.10:31000 -u "$DOCKER_USER" --password-stdin
+            '''
+          }
         }
-        failure {
-            echo "Pipeline failed"
-        }
+      }
     }
+
+    stage('Build Image') {
+      steps {
+        container('docker') {
+          sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
+        }
+      }
+    }
+
+    stage('Push Image') {
+      steps {
+        container('docker') {
+          sh 'docker push $IMAGE_NAME:$IMAGE_TAG'
+        }
+      }
+    }
+
+    stage('Deploy with Helm') {
+      steps {
+        container('docker') {
+          sh '''
+            cd helm
+            helm upgrade --install $HELM_RELEASE . \
+              --namespace $HELM_NAMESPACE \
+              --create-namespace \
+              --set image.repository=$IMAGE_NAME \
+              --set image.tag=$IMAGE_TAG \
+              --set image.pullPolicy=Always
+          '''
+        }
+      }
+    }
+  }
+
+  post {
+    success {
+      echo "Odoo 18 CI/CD completed successfully!"
+    }
+    failure {
+      echo "Odoo 18 pipeline failed."
+    }
+  }
 }
