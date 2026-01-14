@@ -1,89 +1,75 @@
 pipeline {
-  agent {
-    kubernetes {
-      defaultContainer 'kaniko'
-      yaml """
-apiVersion: v1
-kind: Pod
-spec:
-  serviceAccountName: jenkins
-  containers:
-  - name: kaniko
-    image: gcr.io/kaniko-project/executor:latest
-    command:
-    - /busybox/cat
-    tty: true
-    volumeMounts:
-    - name: docker-config
-      mountPath: /kaniko/.docker
+    agent any
 
-  - name: helm
-    image: alpine/helm:3.14.0
-    command:
-    - cat
-    tty: true
+    environment {
+        IMAGE_NAME = "192.168.0.10:31000/odoo18"
+        IMAGE_TAG  = "${BUILD_NUMBER}"
 
-  volumes:
-  - name: docker-config
-    secret:
-      secretName: docker-regcred
-"""
-    }
-  }
+        DOCKER_CRED_ID = "DOCKER_CREDS"
 
-  environment {
-    IMAGE_NAME = "192.168.0.10:31000/odoo18"
-    IMAGE_TAG  = "${BUILD_NUMBER}"
-    HELM_RELEASE = "odoo"
-    HELM_NAMESPACE = "odoo"
-  }
+        GIT_REPO = "https://github.com/mhadiltt/odoo18.git"
+        GIT_BRANCH = "main"
 
-  stages {
-
-    stage('Clone Source Code') {
-      steps {
-        checkout scm
-      }
+        HELM_RELEASE = "odoo"
+        HELM_NAMESPACE = "odoo"
     }
 
-    stage('Build & Push Image (Kaniko)') {
-      steps {
-        container('kaniko') {
-          sh '''
-            /kaniko/executor \
-              --dockerfile=Dockerfile \
-              --context=$WORKSPACE \
-              --destination=$IMAGE_NAME:$IMAGE_TAG \
-              --insecure \
-              --skip-tls-verify
-          '''
+    stages {
+
+        stage('Clone Source Code') {
+            steps {
+                git branch: "${GIT_BRANCH}", url: "${GIT_REPO}"
+            }
         }
-      }
-    }
 
-    stage('Deploy using Helm') {
-      steps {
-        container('helm') {
-          sh '''
-            cd helm
-            helm upgrade --install $HELM_RELEASE . \
-              --namespace $HELM_NAMESPACE \
-              --create-namespace \
-              --set image.repository=$IMAGE_NAME \
-              --set image.tag=$IMAGE_TAG \
-              --set image.pullPolicy=Always
-          '''
+        stage('Docker Login') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: DOCKER_CRED_ID,
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )
+                ]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login 192.168.0.10:31000 -u "$DOCKER_USER" --password-stdin
+                    '''
+                }
+            }
         }
-      }
-    }
-  }
 
-  post {
-    success {
-      echo "Odoo 18 successfully built with Kaniko and deployed using Helm!"
+        stage('Build Image') {
+            steps {
+                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                sh 'docker push $IMAGE_NAME:$IMAGE_TAG'
+            }
+        }
+
+        stage('Deploy with Helm') {
+            steps {
+                sh '''
+                    cd helm
+                    helm upgrade --install $HELM_RELEASE . \
+                      --namespace $HELM_NAMESPACE \
+                      --set image.repository=$IMAGE_NAME \
+                      --set image.tag=$IMAGE_TAG \
+                      --set image.pullPolicy=Always
+                '''
+            }
+        }
     }
-    failure {
-      echo "Odoo 18 pipeline failed. Please check Jenkins logs."
+
+    post {
+        success {
+            echo "Odoo deployed successfully"
+        }
+        failure {
+            echo "Pipeline failed"
+        }
     }
-  }
 }
