@@ -5,7 +5,7 @@ pipeline {
         IMAGE_NAME = "192.168.0.10:31000/odoo18"
         IMAGE_TAG  = "${BUILD_NUMBER}"
 
-        DOCKER_CREDS = "docker-creads"
+        DOCKER_CREDS = "2cloudregistry"
 
         GIT_REPO = "https://github.com/mhadiltt/odoo18.git"
         GIT_BRANCH = "main"
