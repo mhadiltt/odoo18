@@ -26,18 +26,18 @@ spec:
         - "--insecure-registry=192.168.0.10:31000"
       resources:
         requests:
-          ephemeral-storage: "10Gi"
+          ephemeral-storage: "25Gi"
         limits:
-          ephemeral-storage: "15Gi"
+          ephemeral-storage: "30Gi"
       tty: true
 
     - name: jnlp
       image: jenkins/inbound-agent:latest
       resources:
         requests:
-          ephemeral-storage: "500Mi"
-        limits:
           ephemeral-storage: "1Gi"
+        limits:
+          ephemeral-storage: "2Gi"
       tty: true
 """
     }
