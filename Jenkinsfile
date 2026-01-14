@@ -6,8 +6,14 @@ pipeline {
 apiVersion: v1
 kind: Pod
 spec:
+  tolerations:
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Exists"
+      effect: "NoSchedule"
+
   securityContext:
     runAsUser: 0
+
   containers:
     - name: docker
       image: docker:24.0.6-dind
@@ -39,7 +45,7 @@ spec:
 
   stages {
 
-    stage('Checkout') {
+    stage('Checkout Code') {
       steps {
         checkout scm
       }
@@ -59,7 +65,13 @@ spec:
     stage('Docker Login') {
       steps {
         container('docker') {
-          withCredentials([usernamePassword(credentialsId: DOCKER_CRED_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+          withCredentials([
+            usernamePassword(
+              credentialsId: DOCKER_CRED_ID,
+              usernameVariable: 'DOCKER_USER',
+              passwordVariable: 'DOCKER_PASS'
+            )
+          ]) {
             sh '''
               echo "$DOCKER_PASS" | docker login 192.168.0.10:31000 -u "$DOCKER_USER" --password-stdin
             '''
@@ -68,7 +80,7 @@ spec:
       }
     }
 
-    stage('Build Image') {
+    stage('Build Odoo Image') {
       steps {
         container('docker') {
           sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
@@ -76,7 +88,7 @@ spec:
       }
     }
 
-    stage('Push Image') {
+    stage('Push Odoo Image') {
       steps {
         container('docker') {
           sh 'docker push $IMAGE_NAME:$IMAGE_TAG'
@@ -103,10 +115,10 @@ spec:
 
   post {
     success {
-      echo "Odoo 18 CI/CD completed successfully!"
+      echo "Odoo 18 CI/CD pipeline completed successfully!"
     }
     failure {
-      echo "Odoo 18 pipeline failed."
+      echo "Odoo 18 pipeline failed. Please check logs."
     }
   }
 }
