@@ -1,112 +1,89 @@
 pipeline {
-    agent {
-        kubernetes {
-            defaultContainer 'docker'
-            yaml """
+  agent {
+    kubernetes {
+      defaultContainer 'kaniko'
+      yaml """
 apiVersion: v1
 kind: Pod
 spec:
+  serviceAccountName: jenkins
   containers:
-  - name: docker
-    image: docker:24.0.6-dind
-    securityContext:
-      privileged: true
-    env:
-      - name: DOCKER_TLS_CERTDIR
-        value: ""
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:latest
+    command:
+    - /busybox/cat
+    tty: true
     volumeMounts:
-      - name: docker-sock
-        mountPath: /var/run/docker.sock
+    - name: docker-config
+      mountPath: /kaniko/.docker
+
+  - name: helm
+    image: alpine/helm:3.14.0
+    command:
+    - cat
+    tty: true
+
   volumes:
-  - name: docker-sock
-    hostPath:
-      path: /var/run/docker.sock
+  - name: docker-config
+    secret:
+      secretName: docker-regcred
 """
-        }
+    }
+  }
+
+  environment {
+    IMAGE_NAME = "192.168.0.10:31000/odoo18"
+    IMAGE_TAG  = "${BUILD_NUMBER}"
+    HELM_RELEASE = "odoo"
+    HELM_NAMESPACE = "odoo"
+  }
+
+  stages {
+
+    stage('Clone Source Code') {
+      steps {
+        checkout scm
+      }
     }
 
-    environment {
-        IMAGE_NAME = "192.168.0.10:31000/odoo18"
-        IMAGE_TAG  = "${BUILD_NUMBER}"
-
-        DOCKER_CRED_ID = "DOCKER_CREDS"
-
-        GIT_REPO = "https://github.com/mhadiltt/odoo18.git"
-        GIT_BRANCH = "main"
-
-        HELM_RELEASE = "odoo"
-        HELM_NAMESPACE = "odoo"
+    stage('Build & Push Image (Kaniko)') {
+      steps {
+        container('kaniko') {
+          sh '''
+            /kaniko/executor \
+              --dockerfile=Dockerfile \
+              --context=$WORKSPACE \
+              --destination=$IMAGE_NAME:$IMAGE_TAG \
+              --insecure \
+              --skip-tls-verify
+          '''
+        }
+      }
     }
 
-    stages {
-
-        stage('Clone Source Code') {
-            steps {
-                git branch: "${GIT_BRANCH}", url: "${GIT_REPO}"
-            }
+    stage('Deploy using Helm') {
+      steps {
+        container('helm') {
+          sh '''
+            cd helm
+            helm upgrade --install $HELM_RELEASE . \
+              --namespace $HELM_NAMESPACE \
+              --create-namespace \
+              --set image.repository=$IMAGE_NAME \
+              --set image.tag=$IMAGE_TAG \
+              --set image.pullPolicy=Always
+          '''
         }
-
-        stage('Install Helm') {
-            steps {
-                sh '''
-                    apk add --no-cache curl bash
-                    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-                '''
-            }
-        }
-
-        stage('Docker Login') {
-            steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: "${DOCKER_CRED_ID}",
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )
-                ]) {
-                    sh '''
-                        echo "$DOCKER_PASS" | docker login 192.168.0.10:31000 -u "$DOCKER_USER" --password-stdin
-                    '''
-                }
-            }
-        }
-
-        stage('Build Odoo Image') {
-            steps {
-                sh '''
-                    docker build -t $IMAGE_NAME:$IMAGE_TAG .
-                '''
-            }
-        }
-
-        stage('Push Odoo Image') {
-            steps {
-                sh '''
-                    docker push $IMAGE_NAME:$IMAGE_TAG
-                '''
-            }
-        }
-
-        stage('Deploy using Helm') {
-            steps {
-                sh '''
-                    cd helm
-                    helm upgrade --install $HELM_RELEASE . \
-                      --namespace $HELM_NAMESPACE \
-                      --set image.repository=$IMAGE_NAME \
-                      --set image.tag=$IMAGE_TAG \
-                      --set image.pullPolicy=Always
-                '''
-            }
-        }
+      }
     }
+  }
 
-    post {
-        success {
-            echo "Odoo 18 successfully built and deployed using Jenkins + Helm!"
-        }
-        failure {
-            echo "Odoo 18 pipeline failed. Please check Jenkins logs."
-        }
+  post {
+    success {
+      echo "Odoo 18 successfully built with Kaniko and deployed using Helm!"
     }
+    failure {
+      echo "Odoo 18 pipeline failed. Please check Jenkins logs."
+    }
+  }
 }
