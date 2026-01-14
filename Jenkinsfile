@@ -22,15 +22,22 @@ spec:
       env:
         - name: DOCKER_TLS_CERTDIR
           value: ""
-      command: ["dockerd-entrypoint.sh"]
       args:
-        - "--host=tcp://0.0.0.0:2375"
-        - "--host=unix:///var/run/docker.sock"
         - "--insecure-registry=192.168.0.10:31000"
+      resources:
+        requests:
+          ephemeral-storage: "10Gi"
+        limits:
+          ephemeral-storage: "15Gi"
       tty: true
 
     - name: jnlp
       image: jenkins/inbound-agent:latest
+      resources:
+        requests:
+          ephemeral-storage: "500Mi"
+        limits:
+          ephemeral-storage: "1Gi"
       tty: true
 """
     }
@@ -45,8 +52,11 @@ spec:
   }
 
   stages {
+
     stage('Checkout') {
-      steps { checkout scm }
+      steps {
+        checkout scm
+      }
     }
 
     stage('Install Helm') {
@@ -75,7 +85,9 @@ spec:
     stage('Build Image') {
       steps {
         container('docker') {
-          sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
+          sh '''
+            docker build -t $IMAGE_NAME:$IMAGE_TAG .
+          '''
         }
       }
     }
@@ -83,7 +95,9 @@ spec:
     stage('Push Image') {
       steps {
         container('docker') {
-          sh 'docker push $IMAGE_NAME:$IMAGE_TAG'
+          sh '''
+            docker push $IMAGE_NAME:$IMAGE_TAG
+          '''
         }
       }
     }
@@ -105,7 +119,11 @@ spec:
   }
 
   post {
-    success { echo "Odoo 18 CI/CD completed successfully!" }
-    failure { echo "Odoo 18 pipeline failed." }
+    success {
+      echo "Odoo 18 CI/CD completed successfully!"
+    }
+    failure {
+      echo "Odoo 18 pipeline failed. Check logs."
+    }
   }
 }
