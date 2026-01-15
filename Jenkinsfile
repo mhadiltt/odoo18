@@ -29,9 +29,9 @@ spec:
         - "--insecure-registry=192.168.0.10:31000"
       resources:
         requests:
-          ephemeral-storage: "10Gi"
+          ephemeral-storage: "50Gi"
         limits:
-          ephemeral-storage: "20Gi"
+          ephemeral-storage: "50Gi"
       tty: true
 
     - name: helm
@@ -42,7 +42,7 @@ spec:
       image: jenkins/inbound-agent:latest
       resources:
         requests:
-          ephemeral-storage: "1Gi"
+          ephemeral-storage: "2Gi"
         limits:
           ephemeral-storage: "2Gi"
       tty: true
