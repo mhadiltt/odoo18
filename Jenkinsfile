@@ -6,6 +6,9 @@ pipeline {
 apiVersion: v1
 kind: Pod
 spec:
+  nodeSelector:
+    kubernetes.io/hostname: node1-132
+
   tolerations:
     - key: "node-role.kubernetes.io/control-plane"
       operator: "Exists"
