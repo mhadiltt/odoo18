@@ -20,7 +20,9 @@ spec:
       tty: true
       securityContext:
         privileged: true
-
+      env:
+        - name: DOCKER_TLS_CERTDIR
+          value: ""
       command:
         - sh
         - -c
@@ -30,15 +32,11 @@ spec:
           mv linux-amd64/helm /usr/local/bin/helm
 
           dockerd-entrypoint.sh \
-           --host=unix:///var/run/docker.sock \
-           --host=tcp://0.0.0.0:2375 \
-           --insecure-registry=192.168.0.10:31000 &
+            --host=unix:///var/run/docker.sock \
+            --host=tcp://0.0.0.0:2375 \
+            --insecure-registry=192.168.0.10:31000 &
 
           sleep infinity
-
-      env:
-        - name: DOCKER_TLS_CERTDIR
-          value: ""
       resources:
         requests:
           ephemeral-storage: "10Gi"
@@ -70,18 +68,14 @@ spec:
   stages {
 
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
+      steps { checkout scm }
     }
 
     stage('Docker Login') {
       steps {
         container('builder') {
           withCredentials([usernamePassword(credentialsId: DOCKER_CRED_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-            sh '''
-              echo "$DOCKER_PASS" | docker login http://192.168.0.10:31000 -u "$DOCKER_USER" --password-stdin
-            '''
+            sh 'echo "$DOCKER_PASS" | docker login http://192.168.0.10:31000 -u "$DOCKER_USER" --password-stdin'
           }
         }
       }
