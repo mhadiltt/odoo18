@@ -1,7 +1,7 @@
 pipeline {
   agent {
     kubernetes {
-      defaultContainer 'docker'
+      defaultContainer 'builder'
       yaml """
 apiVersion: v1
 kind: Pod
@@ -14,38 +14,40 @@ spec:
       operator: "Exists"
       effect: "NoSchedule"
 
-  securityContext:
-    runAsUser: 0
-
   containers:
-    - name: docker
-      image: docker:24.0.6-dind
+    - name: builder
+      image: alpine:3.20
+      tty: true
       securityContext:
         privileged: true
+      command:
+        - sh
+        - -c
+        - |
+          apk add --no-cache docker-cli curl bash git
+          curl -fsSL https://get.helm.sh/helm-v3.14.4-linux-amd64.tar.gz | tar -xz
+          mv linux-amd64/helm /usr/local/bin/helm
+          dockerd-entrypoint.sh &
+          sleep infinity
       env:
         - name: DOCKER_TLS_CERTDIR
           value: ""
-      args:
-        - "--insecure-registry=192.168.0.10:31000"
       resources:
         requests:
-          ephemeral-storage: "50Gi"
+          ephemeral-storage: "10Gi"
         limits:
-          ephemeral-storage: "50Gi"
-      tty: true
-
-    - name: helm
-      image: alpine/helm:3.14.0
-      tty: true
+          ephemeral-storage: "20Gi"
+      volumeMounts:
+        - name: docker-graph
+          mountPath: /var/lib/docker
 
     - name: jnlp
       image: jenkins/inbound-agent:latest
-      resources:
-        requests:
-          ephemeral-storage: "2Gi"
-        limits:
-          ephemeral-storage: "2Gi"
       tty: true
+
+  volumes:
+    - name: docker-graph
+      emptyDir: {}
 """
     }
   }
@@ -61,14 +63,18 @@ spec:
   stages {
 
     stage('Checkout') {
-      steps { checkout scm }
+      steps {
+        checkout scm
+      }
     }
 
     stage('Docker Login') {
       steps {
-        container('docker') {
+        container('builder') {
           withCredentials([usernamePassword(credentialsId: DOCKER_CRED_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-            sh 'echo "$DOCKER_PASS" | docker login http://192.168.0.10:31000 -u "$DOCKER_USER" --password-stdin'
+            sh '''
+              echo "$DOCKER_PASS" | docker login http://192.168.0.10:31000 -u "$DOCKER_USER" --password-stdin
+            '''
           }
         }
       }
@@ -76,7 +82,7 @@ spec:
 
     stage('Build Image') {
       steps {
-        container('docker') {
+        container('builder') {
           sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
         }
       }
@@ -84,7 +90,7 @@ spec:
 
     stage('Push Image') {
       steps {
-        container('docker') {
+        container('builder') {
           sh 'docker push $IMAGE_NAME:$IMAGE_TAG'
         }
       }
@@ -92,16 +98,26 @@ spec:
 
     stage('Deploy with Helm') {
       steps {
-        container('helm') {
+        container('builder') {
           sh '''
             cd helm
             helm upgrade --install $HELM_RELEASE . \
               --namespace $HELM_NAMESPACE \
               --set image.repository=$IMAGE_NAME \
-              --set image.tag=$IMAGE_TAG
+              --set image.tag=$IMAGE_TAG \
+              --set image.pullPolicy=Always
           '''
         }
       }
+    }
+  }
+
+  post {
+    success {
+      echo "Odoo 18 CI/CD completed successfully!"
+    }
+    failure {
+      echo "Odoo 18 pipeline failed."
     }
   }
 }
