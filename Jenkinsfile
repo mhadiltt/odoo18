@@ -26,16 +26,16 @@ spec:
         - "--insecure-registry=192.168.0.10:31000"
       resources:
         requests:
-          ephemeral-storage: "25Gi"
+          ephemeral-storage: "50Gi"
         limits:
-          ephemeral-storage: "30Gi"
+          ephemeral-storage: "50Gi"
       tty: true
 
     - name: jnlp
       image: jenkins/inbound-agent:latest
       resources:
         requests:
-          ephemeral-storage: "1Gi"
+          ephemeral-storage: "2Gi"
         limits:
           ephemeral-storage: "2Gi"
       tty: true
@@ -52,31 +52,15 @@ spec:
   }
 
   stages {
-
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
-    }
-
-    stage('Install Helm') {
-      steps {
-        container('docker') {
-          sh '''
-            apk add --no-cache curl bash
-            curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-          '''
-        }
-      }
+      steps { checkout scm }
     }
 
     stage('Docker Login') {
       steps {
         container('docker') {
           withCredentials([usernamePassword(credentialsId: DOCKER_CRED_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-            sh '''
-              echo "$DOCKER_PASS" | docker login http://192.168.0.10:31000 -u "$DOCKER_USER" --password-stdin
-            '''
+            sh 'echo "$DOCKER_PASS" | docker login http://192.168.0.10:31000 -u "$DOCKER_USER" --password-stdin'
           }
         }
       }
@@ -85,9 +69,7 @@ spec:
     stage('Build Image') {
       steps {
         container('docker') {
-          sh '''
-            docker build -t $IMAGE_NAME:$IMAGE_TAG .
-          '''
+          sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
         }
       }
     }
@@ -95,9 +77,7 @@ spec:
     stage('Push Image') {
       steps {
         container('docker') {
-          sh '''
-            docker push $IMAGE_NAME:$IMAGE_TAG
-          '''
+          sh 'docker push $IMAGE_NAME:$IMAGE_TAG'
         }
       }
     }
@@ -110,20 +90,10 @@ spec:
             helm upgrade --install $HELM_RELEASE . \
               --namespace $HELM_NAMESPACE \
               --set image.repository=$IMAGE_NAME \
-              --set image.tag=$IMAGE_TAG \
-              --set image.pullPolicy=Always
+              --set image.tag=$IMAGE_TAG
           '''
         }
       }
-    }
-  }
-
-  post {
-    success {
-      echo "Odoo 18 CI/CD completed successfully!"
-    }
-    failure {
-      echo "Odoo 18 pipeline failed. Check logs."
     }
   }
 }
