@@ -34,7 +34,7 @@ spec:
            --host=tcp://0.0.0.0:2375 \
            --insecure-registry=192.168.0.10:31000 &
 
-      sleep infinity
+          sleep infinity
 
       env:
         - name: DOCKER_TLS_CERTDIR
