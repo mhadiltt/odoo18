@@ -20,6 +20,7 @@ spec:
       tty: true
       securityContext:
         privileged: true
+
       command:
         - sh
         - -c
@@ -27,13 +28,17 @@ spec:
           apk add --no-cache docker-cli curl bash git
           curl -fsSL https://get.helm.sh/helm-v3.14.4-linux-amd64.tar.gz | tar -xz
           mv linux-amd64/helm /usr/local/bin/helm
-          dockerd-entrypoint.sh &
-          sleep infinity
+
+          dockerd-entrypoint.sh \
+           --host=unix:///var/run/docker.sock \
+           --host=tcp://0.0.0.0:2375 \
+           --insecure-registry=192.168.0.10:31000 &
+
+    sleep infinity
+
       env:
         - name: DOCKER_TLS_CERTDIR
           value: ""
-      args:
-        - "--insecure-registry=192.168.0.10:31000"
       resources:
         requests:
           ephemeral-storage: "10Gi"
