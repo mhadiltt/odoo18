@@ -32,6 +32,8 @@ spec:
       env:
         - name: DOCKER_TLS_CERTDIR
           value: ""
+      args:
+        - "--insecure-registry=192.168.0.10:31000"
       resources:
         requests:
           ephemeral-storage: "10Gi"
