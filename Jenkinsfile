@@ -29,16 +29,20 @@ spec:
         - "--insecure-registry=192.168.0.10:31000"
       resources:
         requests:
-          ephemeral-storage: "50Gi"
+          ephemeral-storage: "10Gi"
         limits:
-          ephemeral-storage: "50Gi"
+          ephemeral-storage: "20Gi"
+      tty: true
+
+    - name: helm
+      image: alpine/helm:3.14.0
       tty: true
 
     - name: jnlp
       image: jenkins/inbound-agent:latest
       resources:
         requests:
-          ephemeral-storage: "2Gi"
+          ephemeral-storage: "1Gi"
         limits:
           ephemeral-storage: "2Gi"
       tty: true
@@ -55,6 +59,7 @@ spec:
   }
 
   stages {
+
     stage('Checkout') {
       steps { checkout scm }
     }
@@ -87,7 +92,7 @@ spec:
 
     stage('Deploy with Helm') {
       steps {
-        container('docker') {
+        container('helm') {
           sh '''
             cd helm
             helm upgrade --install $HELM_RELEASE . \
