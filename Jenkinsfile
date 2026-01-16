@@ -75,7 +75,9 @@ spec:
       steps {
         container('builder') {
           withCredentials([usernamePassword(credentialsId: DOCKER_CRED_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-            sh 'echo "$DOCKER_PASS" | docker login http://192.168.0.10:31000 -u "$DOCKER_USER" --password-stdin'
+            sh '''
+            echo "$DOCKER_PASS" | docker login 192.168.0.10:31000 -u "$DOCKER_USER" --password-stdin
+        '''
           }
         }
       }
