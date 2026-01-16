@@ -1,0 +1,49 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jenkins-helm-role
+  namespace: odoo
+rules:
+- apiGroups: [""]
+  resources:
+    - secrets
+    - pods
+    - services
+    - configmaps
+    - persistentvolumeclaims
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+
+- apiGroups: ["apps"]
+  resources:
+    - deployments
+    - statefulsets
+    - replicasets
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+
+- apiGroups: ["batch"]
+  resources:
+    - jobs
+    - cronjobs
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+
