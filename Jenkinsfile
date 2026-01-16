@@ -46,7 +46,7 @@ spec:
     IMAGE_NAME = "192.168.0.10:31000/odoo18"
     IMAGE_TAG  = "${BUILD_NUMBER}"
     DOCKER_CRED_ID = "DOCKER_CREDS"
-    ARGOCD_SERVER = "argocd-server.argocd.svc.cluster.local"
+    ARGOCD_SERVER = "argocd-server.admin.svc"
     ARGOCD_APP_NAME = "ODOO18"
     ARGOCD_CREDS = "ARGOCD_CREDS"
   }
