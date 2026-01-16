@@ -1,6 +1,7 @@
 pipeline {
   agent {
     kubernetes {
+      namespace 'odoo'
       defaultContainer 'docker'
       yaml """
 apiVersion: v1
