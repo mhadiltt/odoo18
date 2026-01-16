@@ -6,6 +6,7 @@ pipeline {
 apiVersion: v1
 kind: Pod
 spec:
+  serviceAccountName: jenkins-helm
   nodeSelector:
     kubernetes.io/hostname: node1-132
 
