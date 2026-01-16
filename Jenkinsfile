@@ -28,9 +28,8 @@ spec:
       tty: true
 
     - name: argocd
-      image: argoproj/argocd:latest
-      command: ["/bin/sh", "-c"]
-      args: ["sleep 365d"]
+      image: argoproj/argocd:v2.9.3
+      command: ["/bin/sh", "-c", "cat"]
       tty: true
 
     - name: jnlp
@@ -84,24 +83,28 @@ spec:
       }
     }
 
-    stage('🚀 ArgoCD Sync') {
+    stage('ArgoCD Sync') {
       steps {
         container('argocd') {
-          withCredentials([usernamePassword(credentialsId: env.ARGOCD_CREDS, usernameVariable: 'ARGOCD_USER', passwordVariable: 'ARGOCD_PASS')]) {
+          withCredentials([usernamePassword(credentialsId: ARGOCD_CREDS, usernameVariable: 'ARGOCD_USER', passwordVariable: 'ARGOCD_PASS')]) {
             sh '''
               set -e
-              echo "🔑 Logging into ArgoCD..."
-              argocd login $ARGOCD_SERVER --username $ARGOCD_USER --password $ARGOCD_PASS --insecure
 
-              echo "🧩 Updating Helm values for Odoo..."
+              echo "Logging into ArgoCD..."
+              argocd login $ARGOCD_SERVER \
+                --username $ARGOCD_USER \
+                --password $ARGOCD_PASS \
+                --insecure
+
+              echo "Updating Helm image tag for Odoo..."
               argocd app set $ARGOCD_APP_NAME \
                 --helm-set image.repository=192.168.0.10:31000/odoo18 \
                 --helm-set image.tag=$IMAGE_TAG
 
-              echo "🔄 Syncing ArgoCD application..."
+              echo "Syncing ArgoCD application..."
               argocd app sync $ARGOCD_APP_NAME --prune
 
-              echo "⏳ Waiting for healthy state..."
+              echo "Waiting for application to become healthy..."
               argocd app wait $ARGOCD_APP_NAME --health --timeout 300
             '''
           }
