@@ -98,6 +98,9 @@ spec:
                 --username $ARGOCD_USER \
                 --password $ARGOCD_PASS \
                 --insecure
+                --plaintext \
+                --grpc-web \
+                --yes
 
               echo "Updating Helm image tag for Odoo..."
               argocd app set $ARGOCD_APP_NAME \
