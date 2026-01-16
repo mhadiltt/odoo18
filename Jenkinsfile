@@ -47,7 +47,7 @@ spec:
     IMAGE_TAG  = "${BUILD_NUMBER}"
     DOCKER_CRED_ID = "DOCKER_CREDS"
     ARGOCD_SERVER = "argocd-server.admin.svc"
-    ARGOCD_APP_NAME = "ODOO18"
+    ARGOCD_APP_NAME = "odoo18"
     ARGOCD_CREDS = "ARGOCD_CREDS"
   }
 
