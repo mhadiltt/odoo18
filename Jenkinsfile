@@ -94,13 +94,12 @@ spec:
               set -e
 
               echo "Logging into ArgoCD..."
-              argocd login $ARGOCD_SERVER \
+              echo y | argocd login $ARGOCD_SERVER \
                 --username $ARGOCD_USER \
                 --password $ARGOCD_PASS \
-                --insecure
+                --insecure \
                 --plaintext \
-                --grpc-web \
-                --yes
+                --grpc-web
 
               echo "Updating Helm image tag for Odoo..."
               argocd app set $ARGOCD_APP_NAME \
