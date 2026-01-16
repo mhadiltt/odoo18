@@ -28,7 +28,7 @@ spec:
       tty: true
 
     - name: argocd
-      image: argoproj/argocd:v2.9.3
+      image: argoproj/argocd:latest
       command: ["/bin/sh", "-c", "cat"]
       tty: true
 
