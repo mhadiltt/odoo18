@@ -41,6 +41,9 @@ spec:
     DOCKER_CRED_ID = "DOCKER_CREDS"
     HELM_RELEASE = "odoo"
     HELM_NAMESPACE = "odoo"
+    ARGOCD_SERVER = "argocd-server.argocd.svc.cluster.local"
+    ARGOCD_APP_NAME = "ODOO18"
+    ARGOCD_CREDS = "ARGOCD_CREDS"
   }
 
   stages {
@@ -91,21 +94,34 @@ spec:
       }
     }
 
-    stage('Deploy with Helm') {
-      steps {
-        container('docker') {
-          sh '''
-            cd helm
-            helm upgrade --install $HELM_RELEASE . \
-              --namespace $HELM_NAMESPACE \
-              --set image.repository=$IMAGE_NAME \
-              --set image.tag=$IMAGE_TAG \
-              --set image.pullPolicy=Always
-          '''
+    stage('🚀 ArgoCD Sync') {
+    steps {
+        container('argocd') {
+            withCredentials([usernamePassword(credentialsId: env.ARGOCD_CREDS, usernameVariable: 'ARGOCD_USER', passwordVariable: 'ARGOCD_PASS')]) {
+                sh '''
+                    set -e
+
+                    echo "🔑 Logging into ArgoCD..."
+                    argocd login $ARGOCD_SERVER \
+                        --username $ARGOCD_USER \
+                        --password $ARGOCD_PASS \
+                        --insecure
+
+                    echo "🧩 Updating Helm values for Odoo..."
+                    argocd app set $ARGOCD_APP_NAME \
+                        --helm-set image.repository=192.168.0.10:31000/odoo18 \
+                        --helm-set image.tag=$IMAGE_TAG
+
+                    echo "🔄 Syncing ArgoCD application..."
+                    argocd app sync $ARGOCD_APP_NAME --prune
+
+                    echo "⏳ Waiting for healthy state..."
+                    argocd app wait $ARGOCD_APP_NAME --health --timeout 300
+                '''
+            }
         }
-      }
     }
-  }
+}
 
   post {
     success {
