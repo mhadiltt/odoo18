@@ -7,7 +7,6 @@ pipeline {
 apiVersion: v1
 kind: Pod
 spec:
-  serviceAccountName: jenkins-helm
   nodeSelector:
     kubernetes.io/hostname: node1-132
 
@@ -28,6 +27,12 @@ spec:
         - "--insecure-registry=192.168.0.10:31000"
       tty: true
 
+    - name: argocd
+      image: argoproj/argocd:latest
+      command: ["/bin/sh", "-c"]
+      args: ["sleep 365d"]
+      tty: true
+
     - name: jnlp
       image: jenkins/inbound-agent:latest
       tty: true
@@ -39,8 +44,6 @@ spec:
     IMAGE_NAME = "192.168.0.10:31000/odoo18"
     IMAGE_TAG  = "${BUILD_NUMBER}"
     DOCKER_CRED_ID = "DOCKER_CREDS"
-    HELM_RELEASE = "odoo"
-    HELM_NAMESPACE = "odoo"
     ARGOCD_SERVER = "argocd-server.argocd.svc.cluster.local"
     ARGOCD_APP_NAME = "ODOO18"
     ARGOCD_CREDS = "ARGOCD_CREDS"
@@ -50,19 +53,6 @@ spec:
 
     stage('Checkout') {
       steps { checkout scm }
-    }
-
-    stage('Install Helm') {
-      steps {
-        container('docker') {
-          sh '''
-            apk add --no-cache curl bash
-            curl -fsSL https://get.helm.sh/helm-v3.14.4-linux-amd64.tar.gz | tar -xz
-            mv linux-amd64/helm /usr/local/bin/helm
-            helm version
-          '''
-        }
-      }
     }
 
     stage('Docker Login') {
@@ -95,33 +85,30 @@ spec:
     }
 
     stage('🚀 ArgoCD Sync') {
-    steps {
+      steps {
         container('argocd') {
-            withCredentials([usernamePassword(credentialsId: env.ARGOCD_CREDS, usernameVariable: 'ARGOCD_USER', passwordVariable: 'ARGOCD_PASS')]) {
-                sh '''
-                    set -e
+          withCredentials([usernamePassword(credentialsId: env.ARGOCD_CREDS, usernameVariable: 'ARGOCD_USER', passwordVariable: 'ARGOCD_PASS')]) {
+            sh '''
+              set -e
+              echo "🔑 Logging into ArgoCD..."
+              argocd login $ARGOCD_SERVER --username $ARGOCD_USER --password $ARGOCD_PASS --insecure
 
-                    echo "🔑 Logging into ArgoCD..."
-                    argocd login $ARGOCD_SERVER \
-                        --username $ARGOCD_USER \
-                        --password $ARGOCD_PASS \
-                        --insecure
+              echo "🧩 Updating Helm values for Odoo..."
+              argocd app set $ARGOCD_APP_NAME \
+                --helm-set image.repository=192.168.0.10:31000/odoo18 \
+                --helm-set image.tag=$IMAGE_TAG
 
-                    echo "🧩 Updating Helm values for Odoo..."
-                    argocd app set $ARGOCD_APP_NAME \
-                        --helm-set image.repository=192.168.0.10:31000/odoo18 \
-                        --helm-set image.tag=$IMAGE_TAG
+              echo "🔄 Syncing ArgoCD application..."
+              argocd app sync $ARGOCD_APP_NAME --prune
 
-                    echo "🔄 Syncing ArgoCD application..."
-                    argocd app sync $ARGOCD_APP_NAME --prune
-
-                    echo "⏳ Waiting for healthy state..."
-                    argocd app wait $ARGOCD_APP_NAME --health --timeout 300
-                '''
-            }
+              echo "⏳ Waiting for healthy state..."
+              argocd app wait $ARGOCD_APP_NAME --health --timeout 300
+            '''
+          }
         }
+      }
     }
-}
+  }
 
   post {
     success {
