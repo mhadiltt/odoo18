@@ -29,10 +29,10 @@ spec:
 
     - name: argocd
       image: argoproj/argocd:latest
-      command:
-        - sleep
-      args:
-        - "infinity"
+      securityContext:
+        runAsUser: 0
+      command: ["/bin/sh"]
+      args: ["-c", "sleep infinity"]
       tty: true
 
     - name: jnlp
