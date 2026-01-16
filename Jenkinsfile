@@ -37,11 +37,6 @@ spec:
             --insecure-registry=192.168.0.10:31000 &
 
           sleep infinity
-      resources:
-        requests:
-          ephemeral-storage: "10Gi"
-        limits:
-          ephemeral-storage: "20Gi"
       volumeMounts:
         - name: docker-graph
           mountPath: /var/lib/docker
@@ -76,8 +71,9 @@ spec:
         container('builder') {
           withCredentials([usernamePassword(credentialsId: DOCKER_CRED_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
             sh '''
-            echo "$DOCKER_PASS" | docker login 192.168.0.10:31000 -u "$DOCKER_USER" --password-stdin
-        '''
+              echo "$DOCKER_PASS" | docker login http://192.168.0.10:31000 \
+                -u "$DOCKER_USER" --password-stdin
+            '''
           }
         }
       }
