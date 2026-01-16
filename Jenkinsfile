@@ -1,7 +1,7 @@
 pipeline {
   agent {
     kubernetes {
-      defaultContainer 'builder'
+      defaultContainer 'docker'
       yaml """
 apiVersion: v1
 kind: Pod
@@ -15,39 +15,20 @@ spec:
       effect: "NoSchedule"
 
   containers:
-    - name: builder
-      image: alpine:3.20
-      tty: true
+    - name: docker
+      image: docker:24.0.6-dind
       securityContext:
         privileged: true
       env:
         - name: DOCKER_TLS_CERTDIR
           value: ""
-      command:
-        - sh
-        - -c
-        - |
-          apk add --no-cache docker-cli curl bash git
-          curl -fsSL https://get.helm.sh/helm-v3.14.4-linux-amd64.tar.gz | tar -xz
-          mv linux-amd64/helm /usr/local/bin/helm
-
-          dockerd-entrypoint.sh \
-            --host=unix:///var/run/docker.sock \
-            --host=tcp://0.0.0.0:2375 \
-            --insecure-registry=192.168.0.10:31000 &
-
-          sleep infinity
-      volumeMounts:
-        - name: docker-graph
-          mountPath: /var/lib/docker
+      args:
+        - "--insecure-registry=192.168.0.10:31000"
+      tty: true
 
     - name: jnlp
       image: jenkins/inbound-agent:latest
       tty: true
-
-  volumes:
-    - name: docker-graph
-      emptyDir: {}
 """
     }
   }
@@ -66,13 +47,26 @@ spec:
       steps { checkout scm }
     }
 
+    stage('Install Helm') {
+      steps {
+        container('docker') {
+          sh '''
+            apk add --no-cache curl bash
+            curl -fsSL https://get.helm.sh/helm-v3.14.4-linux-amd64.tar.gz | tar -xz
+            mv linux-amd64/helm /usr/local/bin/helm
+            helm version
+          '''
+        }
+      }
+    }
+
     stage('Docker Login') {
       steps {
-        container('builder') {
+        container('docker') {
           withCredentials([usernamePassword(credentialsId: DOCKER_CRED_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
             sh '''
               echo "$DOCKER_PASS" | docker login http://192.168.0.10:31000 \
-                -u "$DOCKER_USER" --password-stdin
+              -u "$DOCKER_USER" --password-stdin
             '''
           }
         }
@@ -81,7 +75,7 @@ spec:
 
     stage('Build Image') {
       steps {
-        container('builder') {
+        container('docker') {
           sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
         }
       }
@@ -89,7 +83,7 @@ spec:
 
     stage('Push Image') {
       steps {
-        container('builder') {
+        container('docker') {
           sh 'docker push $IMAGE_NAME:$IMAGE_TAG'
         }
       }
@@ -97,7 +91,7 @@ spec:
 
     stage('Deploy with Helm') {
       steps {
-        container('builder') {
+        container('docker') {
           sh '''
             cd helm
             helm upgrade --install $HELM_RELEASE . \
