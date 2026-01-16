@@ -29,7 +29,10 @@ spec:
 
     - name: argocd
       image: argoproj/argocd:latest
-      command: ["/bin/sh", "-c", "cat"]
+      command:
+        - sleep
+      args:
+        - "infinity"
       tty: true
 
     - name: jnlp
